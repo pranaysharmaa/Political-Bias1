@@ -1,0 +1,15 @@
+body {
+    width: 250px;
+    font-family: Arial, sans-serif;
+    text-align: center;
+}
+
+h2 {
+    font-size: 16px;
+    margin-bottom: 10px;
+}
+
+#biasResult {
+    font-weight: bold;
+    color: #333;
+}
