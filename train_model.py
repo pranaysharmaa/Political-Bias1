@@ -58,9 +58,9 @@ def load_vector_institute():
     return df
 
 # === Kaggle Dataset ===
-def load_kaggle_csv():
-    path = os.path.join(DATA_DIR, KAGGLE_CSV_FILE)
-    return load_csv_file(path, "text", "label")
+# def load_kaggle_csv():
+#     path = os.path.join(DATA_DIR, KAGGLE_CSV_FILE)
+#     return load_csv_file(path, "text", "label")
 
 # === AllSides Dataset ===
 def load_allsides_csv():
