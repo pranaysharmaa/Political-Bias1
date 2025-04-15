@@ -1,4 +1,4 @@
-// Example of content script that extracts text from an article
+// Function to extract text from the article
 function getArticleText() {
   let articleText = "";
   
@@ -11,30 +11,27 @@ function getArticleText() {
   return articleText;
 }
 
-// Function to highlight text based on bias
+// Function to highlight text based on the detected bias
 function highlightBiasText(biasType) {
   let articleElement = document.querySelector('article');
   if (!articleElement) return;
 
-  // Define the style for highlighting text
-  const highlightStyle = 'background-color: yellow; font-weight: bold;';
-  
-  // Based on the detected bias, apply styles to the article
+  // Define the style for highlighting text based on the bias
   if (biasType === 'Left-leaning') {
-    highlightText(articleElement, /left|liberal|progressive/gi, highlightStyle);  // Example keywords
+    highlightText(articleElement, /left|liberal|progressive|democrat/gi, 'highlight-left');
   } else if (biasType === 'Right-leaning') {
-    highlightText(articleElement, /right|conservative|republican/gi, highlightStyle);  // Example keywords
+    highlightText(articleElement, /right|conservative|republican|gop/gi, 'highlight-right');
   } else if (biasType === 'Neutral') {
-    highlightText(articleElement, /neutral|balanced|unbiased/gi, highlightStyle);
+    highlightText(articleElement, /neutral|balanced|unbiased|moderate/gi, 'highlight-neutral');
   }
 }
 
-// Helper function to highlight matching text
-function highlightText(element, regex, style) {
+// Helper function to highlight matching text with a specific CSS class
+function highlightText(element, regex, className) {
   const textNodes = getTextNodesIn(element);
 
   textNodes.forEach(node => {
-    const newText = node.nodeValue.replace(regex, match => `<span style="${style}">${match}</span>`);
+    const newText = node.nodeValue.replace(regex, match => `<span class="${className}">${match}</span>`);
     const span = document.createElement('span');
     span.innerHTML = newText;
     node.replaceWith(span);
@@ -58,9 +55,9 @@ function getTextNodesIn(element) {
   return textNodes;
 }
 
-// Listen for messages from the popup and highlight based on bias detected
+// Listen for messages from the popup to highlight the bias text
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.action === 'highlightBias') {
-    highlightBiasText(request.bias);  // 'request.bias' is the bias type (e.g., 'Left-leaning', 'Right-leaning', etc.)
+    highlightBiasText(request.bias);  // 'request.bias' is the bias type
   }
 });
