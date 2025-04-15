@@ -1,6 +1,6 @@
 import os
-import pandas as pd
-from datasets import load_dataset
+import pandas as pd #type: ignore
+from datasets import load_dataset #type: ignore
 from preprocessing import preprocess_pipeline
 
 
@@ -41,11 +41,13 @@ def load_csv_file(file_path, text_col, label_col, label_map=None):
     
     df = pd.read_csv(file_path)
 
-    #Rename BEFORE checking or mapping labels
+    # ✅ Rename first
     df = df.rename(columns={text_col: "text", label_col: "label"})
 
+    # ✅ Apply label mapping safely
     if label_map:
-        df = df[df["label"].isin(label_map.keys())].copy()
+        valid_labels = list(label_map.keys())
+        df = df[df["label"].isin(valid_labels)].copy()
         df["label"] = df["label"].map(label_map)
 
     print(f"✅ Loaded {len(df)} samples from {os.path.basename(file_path)}")
@@ -60,20 +62,27 @@ def load_pranjali():
     print(f"✅ Loaded {len(df)} samples from pranjali97/Bias-detection-combined")
     return df
 
-# === Hugging Face: vector-institute ===
-def load_vector_institute():
-    ds = load_dataset("vector-institute/newsmediabias-plus")
-    df = pd.DataFrame(ds["train"])
-    df = df.rename(columns={"text": "text", "label": "label"})
-    print(f"✅ Loaded {len(df)} samples from vector-institute/newsmediabias-plus")
-    return df
+#  Hugging Face: vector-institute (will use after getting permission)
+# def load_vector_institute():
+#     ds = load_dataset("vector-institute/newsmediabias-plus")
+#     df = pd.DataFrame(ds["train"])
+#     df = df.rename(columns={"text": "text", "label": "label"})
+#     print(f"✅ Loaded {len(df)} samples from vector-institute/newsmediabias-plus")
+#     return df
 
 
 # === AllSides Dataset ===
 def load_allsides_csv():
     path = os.path.join(DATA_DIR, ALLSIDES_CSV_FILE)
-    bias_map = {"left": 0, "center": 1, "right": 2}
-    return load_csv_file(path, "news_source", "allsides_bias", label_map=bias_map)
+    bias_map = {
+        "left": 0,
+        "left-center": 0,
+        "center": 1,
+        "right-center": 2,
+        "right": 2
+    }
+    return load_csv_file(path, text_col="name", label_col="bias", label_map=bias_map)
+
 
 # === Merge & Save ===
 def main():
@@ -82,7 +91,7 @@ def main():
         load_allsides_csv(),
         # load_kaggle_csv(),
         load_pranjali(),
-        load_vector_institute()
+        # load_vector_institute()
     ]
 
     combined = pd.concat(dfs, ignore_index=True).dropna()
