@@ -1,12 +1,20 @@
-fastapi
-uvicorn
-transformers
-torch
-pydantic
-pandas
-datasets
-scikit-learn
-nltk
-joblib
-regex
-contractions
+#Python version
+python_version = "3.8"
+
+# FastAPI framework and server
+fastapi==0.70.0
+uvicorn==0.15.0
+
+# Transformer models and machine learning
+transformers==4.5.1
+torch==2.6.0+cpu  # CPU-only version of PyTorch
+
+# Other dependencies
+pydantic==1.8.2
+pandas==1.2.4
+datasets==1.8.0
+scikit-learn==0.24.2
+nltk==3.6.3
+joblib==1.0.1
+regex==2021.4.4
+contractions==0.0.47
