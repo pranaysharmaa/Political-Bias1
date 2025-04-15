@@ -6,7 +6,9 @@ from transformers import RobertaTokenizer, RobertaForSequenceClassification
 
 
 from transformers import DataCollatorWithPadding
+
 import torch
+print("🖥 Device available:", torch.cuda.get_device_name(0) if torch.cuda.is_available() else "CPU only")
 
 # === Paths ===
 DATA_PATH = "data/final_bias_dataset.csv"
@@ -44,7 +46,7 @@ data_collator = DataCollatorWithPadding(tokenizer=tokenizer)
 # === Training Arguments ===
 training_args = TrainingArguments(
     output_dir="./results",
-    evaluation_strategy="epoch",
+    eval_strategy="epoch",
     save_strategy="epoch",
     logging_strategy="epoch",
     num_train_epochs=3,
