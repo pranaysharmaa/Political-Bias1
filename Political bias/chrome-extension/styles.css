@@ -13,3 +13,23 @@ h2 {
     font-weight: bold;
     color: #333;
 }
+/* Style for Left-leaning bias - highlighted in yellow */
+.highlight-left {
+  background-color: #ffcc00; /* Yellow */
+  font-weight: bold;
+  color: #000; /* Black text for contrast */
+}
+
+/* Style for Right-leaning bias - highlighted in light red */
+.highlight-right {
+  background-color: #ff6666; /* Red */
+  font-weight: bold;
+  color: #000; /* Black text for contrast */
+}
+
+/* Style for Neutral bias - highlighted in light green */
+.highlight-neutral {
+  background-color: #ccffcc; /* Green */
+  font-weight: bold;
+  color: #000; /* Black text for contrast */
+}
