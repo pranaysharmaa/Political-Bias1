@@ -4,7 +4,7 @@ uvicorn==0.15.0
 
 # Transformer models and machine learning
 transformers==4.5.1
-torch==2.6.0+cpu  # CPU-only version of PyTorch
+torch==2.0.1  # Latest PyTorch version compatible with CPU
 
 # Other dependencies
 pydantic==1.8.2
