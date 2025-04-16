@@ -4,7 +4,7 @@
 
 This project aims to develop a Chrome extension that detects political bias in news articles in real-time. By leveraging natural language processing (NLP) techniques, particularly BERT-based models, the system classifies articles into one of three categories: Left, Center, or Right. The Chrome extension extracts the text content of news articles from web pages and sends it to a model hosted on a server to predict the political bias of the article.
 
-## Simple Workflow of Events
+## Workflow of Events 
 
 1. **User Browsing**: The user browses news articles on various websites.
 2. **Text Extraction**: The Chrome extension automatically extracts the main content of the article from the webpage.
