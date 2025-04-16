@@ -1,63 +1,58 @@
-// Function to extract text from the article
-function getArticleText() {
-  let articleText = "";
+// popup.js
+
+document.addEventListener("DOMContentLoaded", function() {
+    const startButton = document.getElementById("startButton");
+    const statusText = document.getElementById("statusText");
+    const loader = document.getElementById("loader");
   
-  // Assuming the article is inside <article> tag
-  let articleElement = document.querySelector('article');
-  if (articleElement) {
-    articleText = articleElement.innerText;
-  }
+    // Listen for status updates from the content script
+    chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+      if (message.type === "statusUpdate") {
+        statusText.textContent = message.status;
+        // Hide loader if the process is complete or an error occurred
+        if (
+          message.status === "Bias highlighted." ||
+          message.status === "No bias detected." ||
+          message.status.startsWith("Error")
+        ) {
+          loader.style.display = "none";
+        } else {
+          loader.style.display = "inline-block";
+        }
+      }
+    });
   
-  return articleText;
-}
-
-// Function to highlight text based on the detected bias
-function highlightBiasText(biasType) {
-  let articleElement = document.querySelector('article');
-  if (!articleElement) return;
-
-  // Define the style for highlighting text based on the bias
-  if (biasType === 'Left-leaning') {
-    highlightText(articleElement, /left|liberal|progressive|democrat/gi, 'highlight-left');
-  } else if (biasType === 'Right-leaning') {
-    highlightText(articleElement, /right|conservative|republican|gop/gi, 'highlight-right');
-  } else if (biasType === 'Neutral') {
-    highlightText(articleElement, /neutral|balanced|unbiased|moderate/gi, 'highlight-neutral');
-  }
-}
-
-// Helper function to highlight matching text with a specific CSS class
-function highlightText(element, regex, className) {
-  const textNodes = getTextNodesIn(element);
-
-  textNodes.forEach(node => {
-    const newText = node.nodeValue.replace(regex, match => `<span class="${className}">${match}</span>`);
-    const span = document.createElement('span');
-    span.innerHTML = newText;
-    node.replaceWith(span);
+    startButton.addEventListener("click", function() {
+      // Reset status and show loader
+      statusText.textContent = "Initializing...";
+      loader.style.display = "inline-block";
+  
+      chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+        if (tabs.length === 0) {
+          statusText.textContent = "No active tab found.";
+          return;
+        }
+        const tabId = tabs[0].id;
+        
+        // Dynamically inject the content script into the active tab
+        chrome.scripting.executeScript({
+          target: { tabId: tabId },
+          files: ["content.js"]
+        }, () => {
+          if (chrome.runtime.lastError) {
+            statusText.textContent = "Error injecting content script: " + chrome.runtime.lastError.message;
+            console.error("Error injecting content script:", chrome.runtime.lastError.message);
+          } else {
+            // After injecting the content script, send a message to start bias detection
+            chrome.tabs.sendMessage(tabId, { type: "startBiasDetection" }, (response) => {
+              if (chrome.runtime.lastError) {
+                statusText.textContent = "Error: " + chrome.runtime.lastError.message;
+                console.error("Error sending message to content script:", chrome.runtime.lastError.message);
+              }
+            });
+          }
+        });
+      });
+    });
   });
-}
-
-// Helper function to get all text nodes within an element
-function getTextNodesIn(element) {
-  const textNodes = [];
-  const walk = document.createTreeWalker(
-    element,
-    NodeFilter.SHOW_TEXT,
-    null,
-    false
-  );
   
-  let node;
-  while (node = walk.nextNode()) {
-    textNodes.push(node);
-  }
-  return textNodes;
-}
-
-// Listen for messages from the popup to highlight the bias text
-chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-  if (request.action === 'highlightBias') {
-    highlightBiasText(request.bias);  // 'request.bias' is the bias type
-  }
-});
