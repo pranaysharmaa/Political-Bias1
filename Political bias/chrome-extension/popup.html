@@ -1,12 +1,21 @@
+<!-- popup.html -->
 <!DOCTYPE html>
-<html lang="en">
-<head>
-    <title>Political Bias Detector</title>
-    <link rel="stylesheet" href="styles.css">
-</head>
-<body>
-    <h2>Political Bias Detector</h2>
-    <div id="biasResult">Loading...</div>
+<html>
+  <head>
+    <meta charset="UTF-8">
+    <title>Political Bias Highlighter</title>
+    <link rel="stylesheet" type="text/css" href="popup.css">
+  </head>
+  <body>
+    <div class="popup-container">
+      <img src="icon.png" alt="Extension Icon" class="logo">
+      <h1>Political Bias Highlighter</h1>
+      <div id="statusContainer">
+        <div id="statusText">Initializing...</div>
+        <div class="loader" id="loader"></div>
+      </div>
+      <button id="startButton">Run Bias Check</button>
+    </div>
     <script src="popup.js"></script>
-</body>
+  </body>
 </html>
