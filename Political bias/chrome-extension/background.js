@@ -1,6 +1,6 @@
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     if (request.action === "analyzeText") {
-        fetch("https://your-api-url.com/analyze", {  // Replace with your deployed API URL
+        fetch("https://biascheck-api.onrender.com/predict_bias", {  // Replace with your deployed API URL
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ text: request.text })
