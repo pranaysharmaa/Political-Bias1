@@ -1,63 +1,85 @@
-// Function to extract text from the article
-function getArticleText() {
-  let articleText = "";
-  
-  // Assuming the article is inside <article> tag
-  let articleElement = document.querySelector('article');
-  if (articleElement) {
-    articleText = articleElement.innerText;
+// content.js
+
+(function() {
+  console.log("Political Bias Highlighter content script loaded.");
+
+  // Function to send status updates back to the popup
+  function updateStatus(status) {
+    chrome.runtime.sendMessage({ type: "statusUpdate", status: status });
   }
-  
-  return articleText;
-}
 
-// Function to highlight text based on the detected bias
-function highlightBiasText(biasType) {
-  let articleElement = document.querySelector('article');
-  if (!articleElement) return;
-
-  // Define the style for highlighting text based on the bias
-  if (biasType === 'Left-leaning') {
-    highlightText(articleElement, /left|liberal|progressive|democrat/gi, 'highlight-left');
-  } else if (biasType === 'Right-leaning') {
-    highlightText(articleElement, /right|conservative|republican|gop/gi, 'highlight-right');
-  } else if (biasType === 'Neutral') {
-    highlightText(articleElement, /neutral|balanced|unbiased|moderate/gi, 'highlight-neutral');
+  // Function to extract text from the page (here, from paragraph tags)
+  function extractText() {
+    updateStatus("Extracting content...");
+    const paragraphs = document.querySelectorAll("p");
+    let fullText = "";
+    paragraphs.forEach(p => {
+      fullText += p.innerText + "\n";
+    });
+    return { paragraphs, fullText };
   }
-}
 
-// Helper function to highlight matching text with a specific CSS class
-function highlightText(element, regex, className) {
-  const textNodes = getTextNodesIn(element);
+  // Helper function to highlight paragraphs (simple yellow background)
+  function highlightParagraphs(paragraphs) {
+    paragraphs.forEach(p => {
+      p.style.backgroundColor = "yellow";
+    });
+    updateStatus("Bias highlighted.");
+  }
 
-  textNodes.forEach(node => {
-    const newText = node.nodeValue.replace(regex, match => `<span class="${className}">${match}</span>`);
-    const span = document.createElement('span');
-    span.innerHTML = newText;
-    node.replaceWith(span);
+  // Listen for the command from the popup to start the bias detection
+  chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+    if (request.type === "startBiasDetection") {
+      updateStatus("Starting bias detection...");
+      
+      // Extract content
+      const { paragraphs, fullText } = extractText();
+      if (fullText.trim().length === 0) {
+        updateStatus("No text content found.");
+        sendResponse({ status: "noContent" });
+        return;
+      }
+
+      // Request API URL from the background script
+      chrome.runtime.sendMessage({ type: "getApiUrl" }, (response) => {
+        const apiUrl = response.apiUrl;
+        if (!apiUrl) {
+          updateStatus("Error: API URL not found.");
+          sendResponse({ status: "apiUrlNotFound" });
+          return;
+        }
+
+        updateStatus("Detecting bias...");
+
+        // Call the bias detection API with the extracted text
+        fetch(apiUrl, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({ text: fullText })
+        })
+        .then(res => res.json())
+        .then(data => {
+          console.log("Bias detection response:", data);
+          // Assuming the API returns { biasFound: true } when bias is detected.
+          if (data && data.biasFound) {
+            highlightParagraphs(paragraphs);
+            sendResponse({ status: "biasHighlighted" });
+          } else {
+            updateStatus("No bias detected.");
+            sendResponse({ status: "noBias" });
+          }
+        })
+        .catch(err => {
+          console.error("Error during bias detection:", err);
+          updateStatus("Error during bias detection.");
+          sendResponse({ status: "error", error: err.toString() });
+        });
+      });
+
+      // Indicate that the response will be sent asynchronously.
+      return true;
+    }
   });
-}
-
-// Helper function to get all text nodes within an element
-function getTextNodesIn(element) {
-  const textNodes = [];
-  const walk = document.createTreeWalker(
-    element,
-    NodeFilter.SHOW_TEXT,
-    null,
-    false
-  );
-  
-  let node;
-  while (node = walk.nextNode()) {
-    textNodes.push(node);
-  }
-  return textNodes;
-}
-
-// Listen for messages from the popup to highlight the bias text
-chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-  if (request.action === 'highlightBias') {
-    highlightBiasText(request.bias);  // 'request.bias' is the bias type
-  }
-});
+})();
