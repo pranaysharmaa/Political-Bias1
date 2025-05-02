@@ -1,114 +1,135 @@
 import os
+import glob
+import json
 import pandas as pd
 import torch
+import numpy as np
 from datasets import Dataset
 from transformers import (
     RobertaTokenizer,
     RobertaForSequenceClassification,
+    DataCollatorWithPadding,
     Trainer,
     TrainingArguments,
-    DataCollatorWithPadding,
 )
 from sklearn.metrics import accuracy_score, f1_score
 
-# === Paths & Config ===
-DATA_PATH = os.getenv("DATA_PATH", "data/final_bias_dataset.csv")
-MODEL_DIR = os.getenv("MODEL_DIR", "models/political-bias-model")
-LOG_DIR = os.getenv("LOG_DIR", "logs")
+# ─────── CONFIG ──────────────────────────────────────────────────────────────
+# at the top, replace all your Windows‐style paths with their WSL mounts:
+DATA_DIR   = "/mnt/c/Users/peeka/Downloads/Politcial-Bias-Model/data"
+JSON_DIR   = "/mnt/c/Users/peeka/Downloads/Politcial-Bias-Model/data/Article-Bias-Prediction-main/data/jsons"
 
-# Training hyperparameters
-NUM_EPOCHS = 20  # balance under/overfitting
-BATCH_SIZE = 16  # adjust to fit your GPU memory
-MAX_LENGTH = 256  # truncate/pad length
-LEARNING_RATE = 2e-5
-WEIGHT_DECAY = 0.01
+# DATA_DIR = r"C:\Users\peeka\Downloads\Politcial-Bias-Model\data"
+TXT_LABELS = {"Left Data": 0, "Center Data": 1, "Right Data": 2}
+# JSON_DIR = r"C:\Users\peeka\Downloads\Politcial-Bias-Model\data\Article-Bias-Prediction-main\data\jsons"
+MODEL_SAVE_PATH = "models/political-bias-model"
+MODEL_NAME = "roberta-base"
+# ──────────────────────────────────────────────────────────────────────────────
 
-# === Device ===
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-print(f"🖥 Training on device: {device}")
+def load_txt_df():
+    rows = []
+    for folder_name, label in TXT_LABELS.items():
+        # WSL path: .../data/Center Data/Center Data
+        folder = os.path.join(DATA_DIR, folder_name, folder_name)
+        if not os.path.isdir(folder):
+            print(f"⚠️  Missing folder: {folder}")
+            continue
+        for fn in os.listdir(folder):
+            if fn.lower().endswith(".txt"):
+                full = os.path.join(folder, fn)
+                with open(full, encoding="utf-8") as f:
+                    txt = f.read().strip()
+                if txt:
+                    rows.append({"text": txt, "label": label})
+    print(f"✅ Loaded {len(rows)} TXT samples")
+    return pd.DataFrame(rows)
 
-# === Load & preprocess dataset ===
-print("📥 Loading dataset...")
-df = pd.read_csv(DATA_PATH).dropna(subset=["text","label"])
 
-# simple shuffle + split
-dataset = Dataset.from_pandas(df)
-split = dataset.train_test_split(test_size=0.1, seed=42)
-train_ds, eval_ds = split['train'], split['test']
+def load_json_df():
+    rows = []
+    bias_map = {"left":0, "center":1, "right":2}
+    if not os.path.isdir(JSON_DIR):
+        print(f"⚠️  Missing JSON folder: {JSON_DIR}")
+        return pd.DataFrame(rows)
+    for path in glob.glob(os.path.join(JSON_DIR, "*.json")):
+        obj = json.load(open(path, encoding="utf-8"))
+        content   = obj.get("content","").strip()
+        bias_txt  = obj.get("bias_text","").lower()
+        if content and bias_txt in bias_map:
+            rows.append({"text": content, "label": bias_map[bias_txt]})
+    print(f"✅ Loaded {len(rows)} JSON samples")
+    return pd.DataFrame(rows)
 
-# === Tokenizer & Model ===
-print("🧠 Initializing RoBERTa...")
-tokenizer = RobertaTokenizer.from_pretrained("roberta-base")
-model = RobertaForSequenceClassification.from_pretrained(
-    "roberta-base", num_labels=3
-)
-model.to(device)
-
-# === Tokenization function ===
-def tokenize_fn(batch):
-    return tokenizer(
-        batch['text'],
-        padding='max_length',
-        truncation=True,
-        max_length=MAX_LENGTH
+def main():
+    # 1) load dataframes
+    df_txt  = load_txt_df()
+    df_json = load_json_df()
+    df = pd.concat([df_txt, df_json], ignore_index=True).sample(frac=1, random_state=42)
+    
+    # 2) to HuggingFace Dataset and train/test split
+    ds = Dataset.from_pandas(df[["text","label"]])
+    ds = ds.train_test_split(test_size=0.2, seed=42)
+    train_ds, eval_ds = ds["train"], ds["test"]
+    
+    # 3) tokenizer & model
+    tokenizer = RobertaTokenizer.from_pretrained(MODEL_NAME)
+    model     = RobertaForSequenceClassification.from_pretrained(MODEL_NAME, num_labels=3)
+    
+    # 4) tokenization
+    def tok_fn(batch):
+        return tokenizer(batch["text"], truncation=True, padding="max_length", max_length=512)
+    train_ds = train_ds.map(tok_fn, batched=True)
+    eval_ds  = eval_ds.map(tok_fn, batched=True)
+    
+    # 5) data collator, metrics
+    data_collator = DataCollatorWithPadding(tokenizer)
+    def compute_metrics(p):
+        preds = np.argmax(p.predictions, axis=1)
+        return {
+            "accuracy": accuracy_score(p.label_ids, preds),
+            "f1": f1_score(p.label_ids, preds, average="weighted"),
+        }
+    
+    # 6) Trainer + training args
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    print("Using device:", device)
+    model.to(device)
+    
+    training_args = TrainingArguments(
+        output_dir="./results",
+        num_train_epochs=20,
+        per_device_train_batch_size=16,
+        per_device_eval_batch_size=16,
+        eval_strategy="epoch",
+        save_strategy="epoch",
+        learning_rate=2e-5,
+        weight_decay=0.01,
+        load_best_model_at_end=True,
+        save_total_limit=1,
+        push_to_hub=False,
+        logging_dir="./logs",
     )
+    
+    trainer = Trainer(
+        model=model,
+        args=training_args,
+        train_dataset=train_ds,
+        eval_dataset=eval_ds,
+        tokenizer=tokenizer,
+        data_collator=data_collator,
+        compute_metrics=compute_metrics,
+    )
+    
+    # 7) train!
+    print("🚀 Starting training...")
+    trainer.train()
+    os.makedirs("logs", exist_ok=True)
+    with open("logs/trainer_state.json", "w") as f:
+        json.dump(trainer.state.log_history, f, indent=2)
+    print("💾 Saving model to", MODEL_SAVE_PATH)
+    trainer.save_model(MODEL_SAVE_PATH)
+    tokenizer.save_pretrained(MODEL_SAVE_PATH)
+    print("✅ Training complete!")
 
-train_ds = train_ds.map(tokenize_fn, batched=True)
-eval_ds  = eval_ds.map(tokenize_fn, batched=True)
-
-# set format for PyTorch
-columns = ['input_ids','attention_mask','label']
-train_ds.set_format(type='torch', columns=columns)
-eval_ds.set_format(type='torch', columns=columns)
-
-data_collator = DataCollatorWithPadding(tokenizer)
-
-# === Metrics ===
-
-def compute_metrics(eval_pred):
-    logits, labels = eval_pred
-    preds = logits.argmax(axis=-1)
-    return {
-        'accuracy': accuracy_score(labels, preds),
-        'f1': f1_score(labels, preds, average='weighted')
-    }
-
-# === TrainingArguments ===
-training_args = TrainingArguments(
-    output_dir=MODEL_DIR,
-    num_train_epochs=NUM_EPOCHS,
-    per_device_train_batch_size=BATCH_SIZE,
-    per_device_eval_batch_size=BATCH_SIZE,
-    evaluation_strategy='epoch',
-    save_strategy='epoch',
-    logging_strategy='steps',
-    logging_steps=100,
-    learning_rate=LEARNING_RATE,
-    weight_decay=WEIGHT_DECAY,
-    load_best_model_at_end=True,
-    metric_for_best_model='f1',
-    greater_is_better=True,
-    fp16=torch.cuda.is_available(),  # mixed precision if CUDA enabled
-    logging_dir=LOG_DIR,
-)
-
-# === Trainer ===
-trainer = Trainer(
-    model=model,
-    args=training_args,
-    train_dataset=train_ds,
-    eval_dataset=eval_ds,
-    tokenizer=tokenizer,
-    data_collator=data_collator,
-    compute_metrics=compute_metrics,
-)
-
-# === Train ===
-print("🚀 Starting training...")
-trainer.train()
-print("✅ Training complete!")
-
-# === Save final model/tokenizer ===
-trainer.save_model(MODEL_DIR)
-tokenizer.save_pretrained(MODEL_DIR)
-print(f"💾 Model and tokenizer saved to {MODEL_DIR}")
+if __name__ == "__main__":
+    main()
