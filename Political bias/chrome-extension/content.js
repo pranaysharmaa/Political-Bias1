@@ -1,85 +1,54 @@
-// content.js
+const API_URL = "https://cors-anywhere.herokuapp.com/https://biascheck-api.onrender.com/predict_bias";
 
-(function() {
-  console.log("Political Bias Highlighter content script loaded.");
-
-  // Function to send status updates back to the popup
-  function updateStatus(status) {
-    chrome.runtime.sendMessage({ type: "statusUpdate", status: status });
-  }
-
-  // Function to extract text from the page (here, from paragraph tags)
-  function extractText() {
-    updateStatus("Extracting content...");
-    const paragraphs = document.querySelectorAll("p");
-    let fullText = "";
-    paragraphs.forEach(p => {
-      fullText += p.innerText + "\n";
+async function checkAndHighlight(text, element) {
+  try {
+    const response = await fetch(API_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({ text })
     });
-    return { paragraphs, fullText };
-  }
 
-  // Helper function to highlight paragraphs (simple yellow background)
-  function highlightParagraphs(paragraphs) {
-    paragraphs.forEach(p => {
-      p.style.backgroundColor = "yellow";
-    });
-    updateStatus("Bias highlighted.");
-  }
-
-  // Listen for the command from the popup to start the bias detection
-  chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-    if (request.type === "startBiasDetection") {
-      updateStatus("Starting bias detection...");
-      
-      // Extract content
-      const { paragraphs, fullText } = extractText();
-      if (fullText.trim().length === 0) {
-        updateStatus("No text content found.");
-        sendResponse({ status: "noContent" });
-        return;
-      }
-
-      // Request API URL from the background script
-      chrome.runtime.sendMessage({ type: "getApiUrl" }, (response) => {
-        const apiUrl = response.apiUrl;
-        if (!apiUrl) {
-          updateStatus("Error: API URL not found.");
-          sendResponse({ status: "apiUrlNotFound" });
-          return;
-        }
-
-        updateStatus("Detecting bias...");
-
-        // Call the bias detection API with the extracted text
-        fetch(apiUrl, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json"
-          },
-          body: JSON.stringify({ text: fullText })
-        })
-        .then(res => res.json())
-        .then(data => {
-          console.log("Bias detection response:", data);
-          // Assuming the API returns { biasFound: true } when bias is detected.
-          if (data && data.biasFound) {
-            highlightParagraphs(paragraphs);
-            sendResponse({ status: "biasHighlighted" });
-          } else {
-            updateStatus("No bias detected.");
-            sendResponse({ status: "noBias" });
-          }
-        })
-        .catch(err => {
-          console.error("Error during bias detection:", err);
-          updateStatus("Error during bias detection.");
-          sendResponse({ status: "error", error: err.toString() });
-        });
-      });
-
-      // Indicate that the response will be sent asynchronously.
-      return true;
+    const contentType = response.headers.get("content-type");
+    if (!contentType || !contentType.includes("application/json")) {
+      const errText = await response.text();
+      throw new Error(`Non-JSON response: ${errText.slice(0, 100)}...`);
     }
-  });
-})();
+
+    const result = await response.json();
+    const bias = result.bias_label;
+
+    if (bias === "Left") {
+      element.style.backgroundColor = "#ffcccc"; // red
+    } else if (bias === "Right") {
+      element.style.backgroundColor = "#cce5ff"; // blue
+    } else if (bias === "Center") {
+      element.style.backgroundColor = "#ffffcc"; // yellow
+    }
+
+    element.style.transition = "background-color 0.4s ease";
+    console.log(`BiasCheck: "${text.slice(0, 60)}..." → ${bias}`);
+  } catch (error) {
+    console.error("BiasCheck error:", error);
+  }
+}
+
+function getVisibleTextElements() {
+  return Array.from(document.querySelectorAll("p, span, li, div"))
+    .filter(el => el.innerText.trim().length > 40 && isVisible(el));
+}
+
+function isVisible(el) {
+  const style = window.getComputedStyle(el);
+  return style.display !== "none" && style.visibility !== "hidden" && el.offsetParent !== null;
+}
+
+async function processPage() {
+  const elements = getVisibleTextElements();
+  for (const el of elements) {
+    await checkAndHighlight(el.innerText, el);
+  }
+}
+
+window.addEventListener("load", processPage);
