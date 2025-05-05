@@ -1,19 +1,17 @@
 {
   "manifest_version": 3,
-  "name": "Political Bias Highlighter",
+  "name": "BiasCheck Highlighter",
   "version": "1.0",
-  "description": "Extracts page text, sends it to a bias detection API, and highlights biased text—much like Grammarly.",
+  "description": "Highlights political bias in website content using a remote API.",
   "permissions": [
-    "activeTab",
-    "scripting"
+    "scripting",
+    "activeTab"
   ],
-  "background": {
-    "service_worker": "background.js"
-  },
-  "action": {
-    "default_popup": "popup.html",
-    "default_icon": "icon.png"
-  },
+  "host_permissions": [
+    "https://*/*",
+    "http://*/*",
+    "https://cors-anywhere.herokuapp.com/*"
+  ],
   "content_scripts": [
     {
       "matches": ["<all_urls>"],
