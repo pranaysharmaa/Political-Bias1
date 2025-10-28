@@ -1,26 +1,21 @@
 {
-    "manifest_version": 3,
-    "name": "Political Bias Detector",
-    "version": "1.0",
-    "description": "Detects political bias in news articles using BERT.",
-    "permissions": ["activeTab", "scripting", "storage"],
-    "host_permissions": ["https://*/*", "http://*/*"],
-    "background": {
-      "service_worker": "background.js"
-    },
-    "action": {
-      "default_popup": "popup.html",
-      "default_icon": {
-        "16": "icon.png",
-        "48": "icon.png",
-        "128": "icon.png"
-      }
-    },
-    "content_scripts": [
-      {
-        "matches": ["https://*/*", "http://*/*"],
-        "js": ["content.js"]
-      }
-    ]
-  }
-  
+  "manifest_version": 3,
+  "name": "BiasCheck Highlighter",
+  "version": "1.0",
+  "description": "Highlights political bias in website content using a remote API.",
+  "permissions": [
+    "scripting",
+    "activeTab"
+  ],
+  "host_permissions": [
+    "https://*/*",
+    "http://*/*",
+    "https://cors-anywhere.herokuapp.com/*"
+  ],
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content.js"]
+    }
+  ]
+}

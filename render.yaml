@@ -1,0 +1,7 @@
+services:
+  - type: web
+    name: political-bias-api
+    env: python
+    python_version: "3.8"  # specify the version here
+    buildCommand: "pip install -r requirements.txt"
+    startCommand: "uvicorn main:app --host 0.0.0.0 --port 8000"
